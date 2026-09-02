@@ -1,0 +1,21 @@
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# 虚拟环境
+.venv/
+
+# IDE 配置
+.idea/
+
+# Jupyter 检查点
+.ipynb_checkpoints/
+
+# 训练产物：模型权重/checkpoint（几百 GB，绝不入库）
+018-llm/02-sft/output/
+
+# 训练日志（含进度条刷屏内容，体积大且无复用价值）
+018-llm/02-sft/logs/
+
+# 系统文件
+.DS_Store

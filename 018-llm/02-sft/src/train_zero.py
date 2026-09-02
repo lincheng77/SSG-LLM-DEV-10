@@ -1,0 +1,87 @@
+
+import os
+# 指定 Hugging Face 镜像源（本机访问 huggingface.co 不通，
+# 不设置的话 transformers 装 peft 后会联网检查 adapter 导致加载卡住）
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
+from pathlib import Path
+
+from datasets import load_dataset, disable_caching
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from message import to_message
+from trl import SFTConfig, SFTTrainer
+
+# 全局禁用 datasets 缓存：指纹只含"message.to_message"引用不含代码（dill 按引用序列化导入函数），
+# 修改 message.py 后指纹不变，SFTTrainer 内部 tokenize 的 map 会命中旧缓存（旧缓存曾导致模型学复述、准确率为 0）
+disable_caching()
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / 'data'
+OUTPUT_DIR = BASE_DIR / 'output' / 'zero'
+
+def train():
+    model_name = "Qwen/Qwen3-4B"
+
+    model = AutoModelForCausalLM.from_pretrained(model_name,
+                                                 torch_dtype= 'auto',
+                                                 local_files_only=True)
+    tokenizer = AutoTokenizer.from_pretrained(model_name,local_files_only=True)
+
+    dataset_dict = load_dataset('json', data_files={
+        'train': str(DATA_DIR / 'train.jsonl'),
+        'validation': str(DATA_DIR / 'validation.jsonl')
+    })
+
+    dataset_dict = dataset_dict.map(to_message, batched=False, remove_columns=['text', 'intent', 'slots'],
+                                    fn_kwargs={"include_assistant": True},
+                                    load_from_cache_file=False)  # 禁用 map 缓存：防止命中修改 to_message 之前的旧缓存数据（旧缓存曾导致模型学会复述用户文本、评测准确率为0）
+
+    # 配置参数
+    args = SFTConfig(
+        max_length=10240,
+        assistant_only_loss=True,
+        output_dir=str(OUTPUT_DIR),
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=2, # 2张卡 * 每张卡批次2 * 2个steps累计 = 8条数据更新一次梯度
+        num_train_epochs=1,
+        learning_rate=2e-5,
+        warmup_steps=100,
+        weight_decay=0.01,
+        bf16=True,
+        bf16_full_eval=True,  # 评估阶段同样使用 bf16 混合精度，加快验证集评估并节省显存（精度损失可忽略）
+        gradient_checkpointing=True,  # 开启梯度检查点：用重算换显存，大幅降低激活值占用（4B 全参必开），代价是速度慢约 20%
+        report_to="tensorboard",
+        logging_strategy="steps",
+        logging_steps=20,
+        per_device_eval_batch_size=4,
+        eval_strategy="steps",
+        eval_steps=20,
+        save_strategy="steps",
+        save_steps=20,
+        save_total_limit=3,
+        load_best_model_at_end=True,  # 训练结束时自动加载验证集上表现最好的模型权重（用于最终保存）
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,  # 指定的最优指标 eval_loss 越小越好，即选验证集 loss 最小的 checkpoint（配合metric_for_best_model使用）
+    )
+
+
+    # SFTTrainer
+    trainer = SFTTrainer(
+        model=model,
+        args=args,
+        train_dataset=dataset_dict['train'],
+        eval_dataset=dataset_dict['validation'],
+        processing_class=tokenizer
+    )
+
+
+    # 训练
+    trainer.train()
+
+    # 保存模型
+    trainer.save_model(str(OUTPUT_DIR / 'best'))
+
+if __name__ == '__main__':
+    train()

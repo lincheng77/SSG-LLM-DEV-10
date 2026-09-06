@@ -1,0 +1,373 @@
+1. 旅游规划的阶段练习
+
+ 1.1 项目简单介绍 travel planning
+
+       根据我们的需求 明天从北京去沈阳,2个人玩5天1万预算... -> 多智能体[出行/住宿/美食/景点/路径规划/费用预算]-> 拆解出一份可落地的游玩攻略
+
+          我计划 下周三 从北京去沈阳,2个人玩5天预算1.5万! 吃的好 玩的好 也不要太赶!
+             车票
+             住哪
+             景点   -> 半天一天 -> 多智能体 -> 5分钟
+             吃啥
+             路线
+             ...
+
+ 1.2 案例架构
+                     主智能体 [任务调度 / 详细信息提取] [deep_agents / backend ]
+                                 |
+       车票规划[12306]    地图规划(路径/景点/酒店/美食)[地图]   总结输出[普通]
+ 1.3 子智能体实现
+     1. 地图的子智能体
+         作用: 景点 / 酒店 / 美食 / 路径规划 / 游玩设计 -> system_prompt
+         外部: skill -> skill [高德地图的技能]
+         实现:
+              1. 找一个技能地图技能,下载,并导入到当前项目中 ..  https://www.modelscope.cn/skills/@AMap-Web/amap-lbs-skill
+                  config.json -> dc04bde6e81ab4c49ef7ea19f82286cb
+                  skill.md -> 文字的形式说明了key: dc04bde6e81ab4c49ef7ea19f82286cb
+              2. 粘贴到项目下
+              3. 智能体代码
+
+                    MAP_AGENT_PROMPT = """
+                    你是一名地图规划助手。
+                    你只负责景点搜索、路线分析、住宿酒店和美食。
+
+                    规则：
+                    1. 优先筛选 3 到 6 个最值得推荐的景点
+                    2. 根据预算推荐合适的酒店和美食
+                    3. 输出时说明推荐理由
+                    4. 如果可以生成高德个人地图，优先生成
+                    5. 不要输出冗长原始 POI 数据
+                    """
+
+                    map_sub_agent = {
+                        "name":"map_sub_agent",
+                        "description":"做游玩路线,景点,酒店,住宿规划的助手",
+                        "system_prompt":MAP_AGENT_PROMPT,
+                        "tools":[],
+                        "skills":["/skills/"]  # 配置技能
+                    }
+     2. 车票的子智能体
+         作用: 查询车票信息, 车票 余票和时间以及计算车票费用! 不真的买票!!
+         外部: 12306 -> mcp
+         实现:
+              1. 先安装mcp加载的依赖包  langchain-mcp-adapters
+              2. 查询12306对应的mcpserver信息 https://www.modelscope.cn/mcp/servers/@Joooook/12306-mcp
+                 {
+                      "mcpServers": {
+                        "12306-mcp": {
+                          "type": "sse",
+                          "url": "https://mcp.api-inference.modelscope.net/47a703524e1c4c/sse"
+                        }
+                      }
+                    }
+              3. 定义车票规划的智能体
+                async def create_ticket_sub_agent():
+                # 1.异步加载tools
+                mcp_client =  MultiServerMCPClient({
+                    "12306-mcp": {
+                        "transport": "sse",
+                        "url": "https://mcp.api-inference.modelscope.net/47a703524e1c4c/sse"
+                    }
+                })
+
+                tools =  await mcp_client.get_tools()
+
+                # 2.配置字典
+                ticket_sub_agent_dict = {
+                    "name": "ticket_sub_agent",
+                    "description": "负责12306车次查询、票价分析、出发时间建议",
+                    "system_prompt": TICKET_AGENT_PROMPT,
+                    "tools": tools,
+                }
+                return ticket_sub_agent_dict
+            ticket_sub_agent = asyncio.run(create_ticket_sub_agent)
+     3. 总结的子智能体
+          SUMMARY_AGENT_PROMPT = """
+            你是一名旅行方案汇总助手。
+            你不负责外部查询，只负责整理结果。
+
+            规则：
+            1. 将景点方案与车票方案合并
+            2. 输出最终推荐方案、备选方案、预算估算
+            3. 按“需求摘要、景点建议、车票建议、预算、行程表、注意事项”结构输出
+            4. 保持简洁，不重复原始数据
+            """
+
+            summary_sub_agent = {
+                "name": "summary_sub_agent",
+                "description": "负责整合地图结果与票务结果，生成最终方案",
+                "system_prompt": SUMMARY_AGENT_PROMPT
+            }
+ 1.4 主智能体实现
+        import asyncio
+
+        from deepagents import create_deep_agent
+        from deepagents.backends import FilesystemBackend
+        from langgraph.checkpoint.memory import InMemorySaver
+        from dotenv import load_dotenv
+        from langchain.chat_models import init_chat_model
+        import os
+        from pathlib import Path
+        from tarvel.subagents.map_sub_agent import map_sub_agent
+        from tarvel.subagents.ticket_sub_agent import ticket_sub_agent
+        from tarvel.subagents.summary_sub_agent import summary_sub_agent
+
+        load_dotenv(override=True)
+
+        model = init_chat_model(
+            model=os.getenv("LLM_QWEN_MAX"),
+            model_provider="openai"
+        )
+
+        """
+           backend -> 当前所在的文件夹
+           细节提取 / 内容输出 ->  md
+        """
+        root_dir_path:Path = Path(__file__).parent
+        file_backend = FilesystemBackend(root_dir=root_dir_path,virtual_mode=True)
+
+        checkpointer = InMemorySaver()
+
+
+        MAIN_AGENT_PROMPT = """
+        你是一名旅游规划总控智能体。
+        你的职责是根据用户输入，先抽取关键信息，再调度合适的子智能体完成任务。
+        注意: 必须将规划好的内容写到: results/旅游规划-日期.md文件
+        规则：
+        1. 先从用户输入中抽取：出发地、目的地、日期/天数、预算、偏好、出行节奏
+        2. 如果用户没有明确说明游玩天数，默认按 1 天规划
+        3. 如果用户没有明确说明预算，默认按中等预算规划
+        4. 如果用户没有明确说明偏好，默认按“经典景点 + 少折腾”规划
+        5. 如果用户没有明确说明出行节奏，默认按“舒适型节奏”规划
+        6. 景点、路线、地图相关问题交给 map_sub_agent
+        7. 火车票、车次、票价、时间建议交给 ticket_sub_agent
+        8. 最终结果交给 summary_sub_agent 汇总
+        9. 输出必须使用中文
+        10. 不做真实购票，只做规划和建议
+        """
+
+        main_agent = create_deep_agent(
+            model=model,
+            system_prompt=MAIN_AGENT_PROMPT,
+            backend=file_backend,
+            checkpointer=checkpointer,
+            subagents=[
+                ticket_sub_agent,
+                map_sub_agent,
+                summary_sub_agent
+            ],
+            memory=[
+                "/config/AGENTS.md"
+            ]
+        )
+
+        async def main():
+            query = input("请输入你的旅游需求：").strip()
+
+            print("\n========== 开始规划 ==========\n")
+
+            final_answer = None
+            async for chunk in main_agent.astream(
+                    {
+                        "messages": [
+                            {"role": "user", "content": query}
+                        ]
+                    }
+            ):
+                for node_name, state in chunk.items():
+                    # 我就获取有state 有messages属性
+                    if not state or "messages" not in state:
+                        continue
+                    # state {messages :[]}
+                    #
+                    for message in state["messages"]:
+                        # AIMessage(content='', additional_kwa   模型的最终回答 模型决定调用哪个工具 模型决定调用哪个子代理
+                        # ToolMessage(content='{"query": "人型机器  工具的返回结果
+                        if node_name == "model":
+                            # 模型的最终回答 模型决定调用哪个工具 模型决定调用哪个子代理
+                            if message.content:
+                                # content有值 [模型的最终回答]
+                                print(f"[模型最终回答]:{message.content}")
+                                final_answer = message.content
+                            else:
+                                # content没有值 [调用工具 / 调用子智能体]
+                                if message.tool_calls:
+                                    for tool_call in message.tool_calls:
+                                        if tool_call['name'] == "task":
+                                            # 调用子智能体
+                                            print(f"[模型决定调用子智能体],智能体:{tool_call['args']['subagent_type']}")
+                                        else:
+                                            # 调用了工具
+                                            print(f"[模型决定调用工具],工具:{tool_call['name']},传入参数:{tool_call['args']}")
+                        elif node_name == "tools":
+                            # 工具的最终返回结果
+                            content = message.content
+                            # 给前端返回结果
+                            print(f"[执行工具返回结果]:{content}")
+
+            print("\n========== 最终结果 ==========\n")
+            print(final_answer or "本次没有生成最终结果")
+
+
+        if __name__ == "__main__":
+            asyncio.run(main())
+
+
+2. 深度搜索项目实战
+
+  2.1 项目介绍和了解
+     智能体组成: 一个主智能体 -> 3个查询的子智能体
+     主智能体: 读上传文件 / 生成md文件 / md转成pdf文件
+     网络搜索子智能体:  联网搜索工具
+     数据检索子智能体:  查询数据库表 / 查询某张表的数据 / 执行自定义sql语句查询工具
+     rag知识库智能体:  查询助手列表 / 向指定助手进行提问 [ragflow搭建 / 核心概念 / 提问代码...]
+  2.2 项目搭建
+     2.2.1 项目结构
+        项目
+           agent
+           api
+           prompt
+           tools
+           output
+           updated
+           .env
+     2.2.2 单独启动前端项目
+           步骤1: 安装node软件 [window] == python fastapi uvicorn
+               cmd -> node -v  -> 版本信息 | node 不是'内部或者外部'命令  node -> 文件夹 -> path 重启cmd
+           步骤2: 启动前端项目
+               cmd -> 前端项目根路径 package.json package-lock.json == uv  pyproject.toml [项目依赖信息] uv.lock[锁定版本]  <--  uv sync
+               npm run dev  -> package.json / scripts / {key -> 运行的key: value[vite]}
+     2.2.3 导入基础类
+          api/ context monitor server
+          utils /  path_utils word...
+          .env  需要复制
+  2.3 项目开发
+    2.3.1 模型加载
+       检查 .env文件中模型的配置信息
+       创建模型的py文件初始化模型对象
+       位置: agent / llm.py
+        from dotenv import load_dotenv
+        from langchain.chat_models import init_chat_model
+        import os
+
+
+        load_dotenv(override=True)
+
+        model = init_chat_model(
+            model=os.getenv("LLM_QWEN_MAX"),
+            model_provider="openapi"
+        )
+    2.3.2 配置文件加载
+       步骤1: 导入配置文件  -> 方便程序员管理(读和改)
+          prompt/config.yml
+          main_agent:
+             system_prompt:
+          sub_agents:
+             tavily:
+                name:
+                description
+                system_prompt
+             ....
+       步骤2: 加载配置文件的py
+            from yaml import safe_load
+            from pathlib import Path
+
+            # 1. 找到配置文件对应的Path对象
+            config_path_obj:Path = Path(__file__).parents[1] / "prompt" / "config.yml"
+
+            # 2. open获取流对象
+            config_dict:dict = {}
+            with open(config_path_obj, "r", encoding="utf-8") as stream:
+                config_dict = safe_load(stream)
+            # 3. 解析配置文件字典
+            print(config_dict)
+
+    2.3.3 联网搜索子agent编写
+       步骤1: 定义工具
+            from langchain_core.tools import tool
+            from tavily import TavilyClient
+            import os
+            from dotenv import load_dotenv
+            from api.monitor import monitor
+
+            load_dotenv(override=True)
+
+            tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+
+            @tool
+            def internet_search(query:str,max_results:int=10):
+                """
+                  进行联网搜索信息的工具! 专门用于查询数据库和rag知识库之外的数据!
+                :param query: 查询的问题
+                :param max_results: 返回的结果的数量,默认是10条
+                :return: 查询的结果
+                """
+                print(f"[联网搜索智能体]internet_search工具开始被调用,参数为:{query},{max_results}")
+                # 向前端发送消息!
+                monitor.report_tool(tool_name="internet_search",args={"query":query,"max_results":max_results})
+                result = tavily.search(
+                    query=query,
+                    max_results=max_results,
+                    include_answer=True  # 总结
+                )
+                print(f"[联网搜索智能体]internet_search工具调用结束,查询结果为:{result}")
+                return result
+
+       步骤2: 定义子智能体
+            from tools.tavily_tool import internet_search
+            from agent.config_load import config_dict
+
+            tavily_sub_agent = {
+                "name": config_dict['sub_agents']['tavily']['name'],
+                "description":config_dict['sub_agents']['tavily']['description'],
+                "system_prompt":config_dict['sub_agents']['tavily']['system_prompt'],
+                "tools":[internet_search]
+            }
+
+    2.3.4 数据库信息查询的子智能体
+      步骤1: 准备工作
+         1. 导入数据库脚本 教案中就有
+         2. 检查.env中的数据库配置
+            # 数据库相关配置
+            MYSQL_USER=root
+            MYSQL_PASSWORD=root
+            MYSQL_DATABASE=pharma_db
+            MYSQL_HOST=localhost
+            MYSQL_PORT=3306
+      步骤2: 分析工具和实现
+         目标: 查询表的数据
+         1. 有哪些表 工具查询表信息  [表]
+             select_tables(没有) 返回 表名 表名
+         2. 查询指定表名的至多前100条数据 [字段 + 表关系]
+             select_table_data(表名) 返回 表的至多100条数据
+             注意: 标准的数据库设计'规范' 主外键命名要相同,非主外键命名要不同 table_字段
+         3. 执行sql[模型-自定义]语句并且返回结果  select 字段 from 表 where 字段 join 多表关系  mysql关键字
+             execute_custom_select_sql(sql) 返回查询结果
+      步骤3: 定义数据库子智能体
+      步骤4: 完善信息[yml name...]
+
+
+
+今日总结: (3天)
+    第一天: 多智能体概念和deepagents的入门
+       1. 多智能体的介绍 (发展历史/deepagent/高阶提示词/langchain[framework]graph[runtime]agents[harness])
+       2. deepagent基本使用 [1.创建函数 create_deep_agent 2. 执行函数 i/s 3.参数类型(input = {"messages":[]},config,context) 4.结果解析]
+       3. 子代理subagent (1.多智能体的优劣势 2. 四问 3. dict / compiledsubagent)
+       4. 人机交互(hitl) [1.四步骤 2.approve reject 3. edit 4.respond 5.stream() chunk->]
+    第二天:
+       5. 人机交互 4.respond 5.stream() chunk->]
+       6. backend主动文件形式的长期记忆 (1.长短期 2.backend 3.backend四类 4. file 5.store namepsace.. 6. composite)
+       7. permissions权限->文件工具->backend (1. read / write 2. paths = [/ -> root_dir] 3.mode allow deny 4.多套权限具体向上)
+       8. skill (1.skill/mcp 2.skill文件格式 文件夹=技能名 SKILL.md 元数据+正文数据 3.渐进式加载 4.skill的使用 skills=["/文件夹"])
+       9. 上下文工程 (1.agent数据的支撑 2.四大类 3.输入类型 memory )
+    第三天:
+       10. 上下文工程 (1.agent数据的支撑 2.四大类 3.输入类型 memory 4. context invoke tool runtime:ToolRuntime[定义的类型]  runtime.context.x)
+       11. 旅游规划案例
+       12. 每个人自己规划一个多智能体 (周二晚上比赛)
+       13. 深度搜索 (一个主 3个子 - 2个子)
+基本盘:
+   1. 旅游规划案例 必须
+   2. 每个人自己规划一个多智能体 (周二晚上比赛)
+   3. 玩的开心点
+
+

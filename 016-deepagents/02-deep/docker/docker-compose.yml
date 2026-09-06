@@ -1,0 +1,29 @@
+# 统一入口: 业务 MySQL(pharma_db) + RAGFlow 全套服务
+# 用法(必须在 docker/ 目录内执行, 变量来自本目录的 .env):
+#   docker compose up -d          # 启动全部
+#   docker compose logs -f ragflow
+#   docker compose down           # 停止(数据保留在 named volume)
+name: S10-016-deepagents-02-deep
+
+include:
+  # RAGFlow 应用层(ragflow-server 容器), 依赖 ragflow/docker-compose-base.yml 里的基础服务
+  # ragflow/ 内是课程材料 ragflow-main/docker 的副本, 仅将 mysql 服务改名为 ragflow-mysql 以免和业务 mysql 撞名
+  - ./ragflow/docker-compose-CN-oc9.yml
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: deep-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-pharma_db}
+    ports:
+
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../sql/数据库脚本.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro  # 把数据库脚本放到mysql docker的初始化路径，:ro 是只读
+    restart: unless-stopped
+
+volumes:
+  mysql_data:

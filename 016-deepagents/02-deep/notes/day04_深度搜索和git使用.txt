@@ -1,0 +1,319 @@
+2. 深度搜索项目实战
+
+  2.1 项目介绍和了解
+     智能体组成: 一个主智能体 -> 3个查询的子智能体
+     主智能体: 读上传文件 / 生成md文件 / md转成pdf文件
+     网络搜索子智能体:  联网搜索工具
+     数据检索子智能体:  查询数据库表 / 查询某张表的数据 / 执行自定义sql语句查询工具
+     rag知识库智能体:  查询助手列表 / 向指定助手进行提问 [ragflow搭建 / 核心概念 / 提问代码...]
+
+  2.2 项目搭建
+     2.2.1 项目结构
+        项目
+           agent
+           api
+           prompt
+           tools
+           output
+           updated
+           .env
+     2.2.2 单独启动前端项目
+           步骤1: 安装node软件 [window] == python fastapi uvicorn
+               cmd -> node -v  -> 版本信息 | node 不是'内部或者外部'命令  node -> 文件夹 -> path 重启cmd
+           步骤2: 启动前端项目
+               cmd -> 前端项目根路径 package.json package-lock.json == uv  pyproject.toml [项目依赖信息] uv.lock[锁定版本]  <--  uv sync
+               npm run dev  -> package.json / scripts / {key -> 运行的key: value[vite]}
+     2.2.3 导入基础类
+          api/ context monitor server
+          utils /  path_utils word...
+          .env  需要复制
+  2.3 项目开发
+    2.3.1 模型加载
+       检查 .env文件中模型的配置信息
+       创建模型的py文件初始化模型对象
+       位置: agent / llm.py
+        from dotenv import load_dotenv
+        from langchain.chat_models import init_chat_model
+        import os
+        load_dotenv(override=True)
+        model = init_chat_model(
+            model=os.getenv("LLM_QWEN_MAX"),
+            model_provider="openai"
+        )
+    2.3.2 配置文件加载
+       步骤1: 导入配置文件  -> 方便程序员管理(读和改)
+          prompt/config.yml
+          main_agent:
+             system_prompt:
+          sub_agents:
+             tavily:
+                name:
+                description
+                system_prompt
+             ....
+       步骤2: 加载配置文件的py
+            from yaml import safe_load
+            from pathlib import Path
+
+            # 1. 找到配置文件对应的Path对象
+            config_path_obj:Path = Path(__file__).parents[1] / "prompt" / "config.yml"
+
+            # 2. open获取流对象
+            config_dict:dict = {}
+            with open(config_path_obj, "r", encoding="utf-8") as stream:
+                config_dict = safe_load(stream)
+            # 3. 解析配置文件字典
+            print(config_dict)
+
+    2.3.3 联网搜索子agent编写
+       步骤1: 定义工具
+            from langchain_core.tools import tool
+            from tavily import TavilyClient
+            import os
+            from dotenv import load_dotenv
+            from api.monitor import monitor
+
+            load_dotenv(override=True)
+
+            tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+
+            @tool
+            def internet_search(query:str,max_results:int=10):
+                """
+                  进行联网搜索信息的工具! 专门用于查询数据库和rag知识库之外的数据!
+                :param query: 查询的问题
+                :param max_results: 返回的结果的数量,默认是10条
+                :return: 查询的结果
+                """
+                print(f"[联网搜索智能体]internet_search工具开始被调用,参数为:{query},{max_results}")
+                # 向前端发送消息!
+                monitor.report_tool(tool_name="internet_search",args={"query":query,"max_results":max_results})
+                result = tavily.search(
+                    query=query,
+                    max_results=max_results,
+                    include_answer=True  # 总结
+                )
+                print(f"[联网搜索智能体]internet_search工具调用结束,查询结果为:{result}")
+                return result
+
+       步骤2: 定义子智能体
+            from tools.tavily_tool import internet_search
+            from agent.config_load import config_dict
+
+            tavily_sub_agent = {
+                "name": config_dict['sub_agents']['tavily']['name'],
+                "description":config_dict['sub_agents']['tavily']['description'],
+                "system_prompt":config_dict['sub_agents']['tavily']['system_prompt'],
+                "tools":[internet_search]
+            }
+
+    2.3.4 数据库信息查询的子智能体
+      步骤1: 准备工作
+         1. 导入数据库脚本 教案中就有
+         2. 检查.env中的数据库配置
+            # 数据库相关配置
+            MYSQL_USER=root
+            MYSQL_PASSWORD=root
+            MYSQL_DATABASE=pharma_db
+            MYSQL_HOST=localhost
+            MYSQL_PORT=3306
+      步骤2: 分析工具和实现
+         目标: 查询表的数据
+         1. 有哪些表 工具查询表信息  [表]
+             select_tables(没有) 返回 表名 表名
+         2. 查询指定表名的至多前100条数据 [字段 + 表关系]
+             select_table_data(表名) 返回 表的至多100条数据
+             注意: 标准的数据库设计'规范' 主外键命名要相同,非主外键命名要不同 table_字段
+         3. 执行sql[模型-自定义]语句并且返回结果  select 字段 from 表 where 字段 join 多表关系  mysql关键字
+             execute_custom_select_sql(sql) 返回查询结果
+      步骤3: 定义数据库子智能体
+      步骤4: 完善信息[yml name...]
+
+    2.3.5 rag内部文档子智能体查询
+      步骤1: ragflow安装和配置
+         我们需要集成rag的能力! 但是我们有自己的项目!
+         我们利用 字节开源项目 ragflow
+         ragflow部署 -> 自己的服务器 ->  api / sdk  <- 工具 <- 子智能体
+         主智能体  -> rag的子智能体 -> 工具 ---------->  ragflow
+         1. ragflow项目传递到服务器 /opt
+         2. 项目文件解压  unzip
+         3. 进入到docker文件夹即可  解压文件夹/docker cd
+         4. 直接拉取镜像  docker compose pull [根据项目的配置文件直接拉取镜像]
+         5. 直接启动项目  docker compose up -d / docker compose down
+         http://118.195.252.100/
+      步骤2: rag核心概念介绍和演示
+         登录: http://118.195.252.100/
+         配置模型供应商和模型选择:
+            1. 个人头像
+            2. 模型供应商
+            3. 配置key
+            4. 选中默认模型
+         核心概念:
+            知识库: 文档的集合(文档向量的集合) 文档分类和方便权限控制
+            助手(聊天): 用于真正提问的配置集合 (知识库[向量]/模型[润色])
+            会话: 真正用于提问 会话基于助手创建
+      步骤3: ragapi/sdk使用说明
+         https://ragflow.io/docs/python_api_reference
+         1. 安装依赖
+            pip install ragflow-sdk  uv add ..
+         2. 申请base_url / api_key
+            ragflow / 个人设置 / api
+         3. 登录和连接ragflow
+            ragflow = RAGFLow(base_url=,api_key)
+         4. 使用具体的api
+            创建知识库: dataset   =  ragflow.create_dataset(name,description,embedding_model="模型名@供应商")
+            查看知识库: [dataset] = ragflow.datasets(id/name)
+            上传文件到: dataset.upload_documents([{display_name=".后缀",blob="open read()"])
+            查助手列表: [chat] = ragflow.list_chats(id/name/查询全部什么都不传)
+            创建会话:   session = chat.create_session(name="会话的名字")
+            会话提问:   生成器 =  session.ask(query="问题",is_stream=False)  yield
+            删除会话:   chat.delete_sessions([会话的id])
+      步骤4: 配置准备
+         1. 申请apikey
+         2. 修改和确认 .env配置
+            RAGFLOW_API_URL=http://118.195.252.100
+            # 你的 RAGFlow 服务地址
+            RAGFLOW_API_KEY=ragflow-kwOTFmZWQwOGVkYzExZjFhNzM3NGVlZD
+      步骤5: 工具分析和实现
+          目标: 向ragflow提问或者答案 [ragflow 帮我们存储文档(存储文档不用代码的形式) / 提供文件的检索能力]
+          问题 -> rag子智能体 -> 工具 -> 问题的回答
+          工具1: 检索所有助手信息
+            def search_assistant
+              检索所有助手的信息 名字/描述/知识库
+             model
+          工具2: 提供问题检索的工具
+            def  文件检索(query:str,助手名:str)
+               ragflow - api - 答案
+               return 答案
+          注意: 添加向前端推送数据的函数...[monitor]
+      步骤6: 完善子智能体信息
+         定义子智能体dict
+         修改yaml配置文件
+
+    2.3.6 主智能体定义
+      步骤1: 导入三个工具
+          读取上传文件
+          生成md
+          生成pdf 注意: 不需要写直接粘贴
+      步骤2: 创建主智能体
+          main_agent = create_deep_agent(
+            system_prompt=config_dict['main_agent']['system_prompt'],
+            tools=[
+                convert_md_to_pdf,
+                generate_markdown,
+                read_file_content
+            ],
+            subagents=[
+                ragflow_sub_agent,
+                mysql_sub_agent,
+                tavily_sub_agent
+            ],
+            model=model,
+            #interrupt_on=["[stop]"],
+            checkpointer=InMemorySaver()
+          )
+          注意: 粘贴和完善下主智能体系统提示词!!
+
+      步骤3: 主智能体执行代码(粘贴)
+         1. 前置准备函数 _prepare_session_environment(thread_id)
+             返回1: output文件的完整地址(给前端/用于前端展示上传和生成的文件信息)
+             返回2: output下的相对地址(给模型,添加到提示词,用于控制模型生成文件的位置 例如: 生成药品.pdf /output/session_123/药品信息.pdf)
+             返回3: upload_info:str 这是一段提示词,如果有上传的文件, 将上传文件地址拼接到提示词,让agent进行读取
+             注意: 为啥存在output和updated两个文件夹!
+                 output用于读取生成和上传文件(所以,上传文件需要从updated复制到output一份)
+                 updated专门用于存储上传文件,要告诉模型,然后模型用内置工具进行读取
+                 不能使用一个文件的原因就是因为,模型可能会把生成和上传都混为一谈,都读取到了提示词中
+         2. _process_stream_chunk(chunk)
+            流式结果的处理!
+              1. 调用子智能体
+              2. 最终返回结果
+              舍弃
+              1. 调用工具  -> 工具里面使用 monitor.report_tool...
+              2. 调用工具的结构
+         3. async def run_deep_agent(task_query: str, thread_id: str = None)
+            前端 -> 提问 -> http -> fastapi接口 -> 调用我们异步函数 -> main_agent
+            参数1: task_query 问题  main_agent messages : HumanMessage(content = "提示词")
+            参数2: thread_id 会话id 区分存储位置 / 推送信息 / 区分聊天记录...
+
+            本质就是异步执行 astream  -> chunk -> 推送数据 1. 调用工具 2. 调用子智能体 3.最终结果
+
+3. 深度搜索项目运行
+   3.1 接口分析
+       /api/task -> 触发任务启动 -> 调用主智能体
+       /ws/{thread_id} -> 创建websocket对象 -> 并且使用thread_id key -> {thread_id:websocket}
+   3.2 运行结果反馈(推送数据到前端)
+       方案1: 轮询 前端固定的周期访问 [缺点: 性能差,空循环,不及时循环]
+       方案2: 后端推送 sse / websocket
+   3.3 协程(task)本地变量
+       ContextVar: 为单一协程存储数据
+       作用: 在连续的调用过程不用传递参数,利用存和取的思路实现间接的传递! (外卖小哥-> 货架 -> 我们)
+       本次我们用它共享thread_id
+
+4. 前后端交互流程说明 [图解]
+
+    流程1: 存储websocket -> dict
+    流程2: 执行 -> 存储协程本地变量 -> 调用过程推送数据 (tool /subagent /最终结果)
+
+    asyncio.run_coroutine_threadsafe(
+                                self.websocket_manager.send_to_thread(payload, thread_id),
+                                manager_loop  # uvicorn的循环事件中
+                            )
+
+    原则: 在哪个循环事件创建的对象,必须在哪个循环事件中执行!!
+    websocket -> 接口 -> uvicorn -> 循环事件 -> uvicorn
+
+
+内容总结:
+  1. http://118.195.252.100 地址 创建自己的账号/供应商/apikey系列内容
+  2. ragflow_tools 1. 检索助手信息(助手/描述/知识库) 2. 向指定助手提问(助手名,问题)
+  3. ragflow对应的智能体
+  4. 创建主智能体 - tools / subagents / checkpointer / config.yaml  -> 提示词
+  5. 粘贴了三个方法
+     _prepare_session_environment(thread_id) 地址/上传文件对应提示词
+     _process_stream_chunk(chunk) 最终结果 | 子智能体消息推送
+     run_deep_agent(task_query: str, thread_id: str = None)  1. thread_id ContextVar  2. 准备工作_prepare_session_environment 3. 异步执行stream
+  6. 启动前端项目 / 启动后端 server.py -> 测效果了 [数据库是否启动了,ragflow url/key]
+  7. 标准后前后推送数据的流程
+     接口 ws/{thread_id}  -> 创建websocket -> {thread_id:ws}
+                         -> 创建websocket -> {thread_id:ws}
+                         -> 创建websocket -> {thread_id:ws}
+     接口 api/task {thread_id:, query:}
+          异步调用 ->  asyncio.create_task(run_deep_agent())
+              -> 1. thread_id ContextVar 2. 准备工作_prepare_session_environment  3. 异步执行stream
+                                                                                       |
+                                                                                   |    |    |
+                                                                                工具    工具  子智能体  -> 同一个协程
+                                                                                         |
+                                                                                monitor.report(xx,xx)
+                                                                                         |
+                                                                        1.contextVar获取了当前协程对应thread_id
+                                                                                         |
+                                                                            2. 检查了当前是否在unicorn循环事件中
+                                                                                         |
+                                                                            3. 在 -> create_task(send_json(thread_id,内容))
+                                                                        不在 -> run_coroutine_threadsafe -> (send_json,unicorn)
+                                                                                         |
+                                                                              send_json(thread_id,内容)
+                                                                              步骤1: 存储ws的字典中获取ws对象
+                                                                              步骤2: 调用ws的方法送数据给前端
+
+今日内容:
+  1. 多智能体的搭建流程 / 深度搜索项目结构
+  2. 项目筹备工作 (依赖/结构/配置文件/yaml/初始化配 api/utils)
+  3. 基于网络搜索的子智能体(tavily 1)
+  4. 基于mysql搜索的子智能体(mysql 3)
+  5. ragflow项目部署 + 基本使用(模型供应商/api_key) + (知识库/助手/会话)
+  6. 基于ragflow实现子智能体(ragflow 2 查询所有助手信息 / 向指定助手进行提问)
+  7. main_agent主智能体的搭建和提示词
+  8. main_agent 三个准备函数 1. 准备路径 2. 解析chunk 3.异步运行
+  9. 运行体现效果
+  10. 项目运行和向前端推送数据流程  [contextVar / 协程一些使用]
+
+晚上安排:
+  1. 项目子智能体和主智能体自己写
+  2. 画一个执行和推送结果的流程图(笔和纸)  拍照 -> 微信群里 -> 数数 [9:20]
+  3. 自己设计的多智能体
+
+--------------------deepagents-------------------
+
+5. git...

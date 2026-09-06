@@ -1,0 +1,34 @@
+# The RAGFlow team do not actively maintain docker-compose-CN-oc9.yml, so use them at your own risk. 
+# However, you are welcome to file a pull request to improve it.
+include:
+  - ./docker-compose-base.yml
+
+services:
+  ragflow:
+    depends_on:
+      ragflow-mysql:
+        condition: service_healthy
+    image: infiniflow/ragflow:v0.27.1-221-g70601910e
+    container_name: ragflow-server
+    ports:
+      - ${SVR_HTTP_PORT}:9380
+      - 80:80
+      - 443:443
+    volumes:
+      - ./ragflow-logs:/ragflow/logs
+    env_file: ../.env
+    environment:
+      - TZ=${TIMEZONE}
+      - HF_ENDPOINT=${HF_ENDPOINT}
+      - MACOS=${MACOS}
+      # .env 里的 MYSQL_PORT=5455 是宿主机映射端口, 容器内部走 3306, 覆盖掉防止配置渲染出错
+      - MYSQL_PORT=3306
+      # 新版必须显式指定 API 后端为 python, 否则 API 服务不会启动
+      - API_PROXY_SCHEME=python
+    networks:
+      - ragflow
+    restart: always
+    # https://docs.docker.com/engine/daemon/prometheus/#create-a-prometheus-configuration
+    # If you're using Docker Desktop, the --add-host flag is optional. This flag makes sure that the host's internal IP gets exposed to the Prometheus container.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -1,4 +1,4 @@
-# todo: 将重要信息主动存储到backend -> file -> 文件中! 跨线程提问 -> 数据
+# 将重要信息主动存储到backend -> file -> 文件中! 跨线程提问 -> 数据
 from dataclasses import dataclass
 
 from langchain.chat_models import init_chat_model

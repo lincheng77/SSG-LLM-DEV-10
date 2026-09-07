@@ -94,7 +94,7 @@ result = main_agent.invoke(input={
 },config=config)
 
 
-#todo: 注意: 一旦触发了人机交互拦截的动作! 是所有的工具都不执行!! 包括查询数据表!! -> 配置放行或者拦截动作 -> 会再次规划调用流程 -> 触发
+# 注意: 一旦触发了人机交互拦截的动作! 是所有的工具都不执行!! 包括查询数据表!! -> 配置放行或者拦截动作 -> 会再次规划调用流程 -> 触发
 interrupts = result.get("__interrupt__")
 print(interrupts)
 interrupt_tool_list = interrupts[0].value['action_requests']

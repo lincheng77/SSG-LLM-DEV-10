@@ -48,14 +48,14 @@ class ToolMonitor:
         # 1. FastAPI WebSocket: 定向推送到当前会话
         self._push_to_websocket(payload)
 
-        # TODO
-        # 2. DeepAgents 脚本模式: 全局 runtime 的 stream_writer
-        #    (simple_agents.py 中的 MockRuntime 借此接收数据)
-        if builtins and hasattr(builtins, 'runtime') and hasattr(builtins.runtime, 'stream_writer'):
-            try:
-                builtins.runtime.stream_writer(payload)
-            except Exception:
-                pass
+        # 这个项目现在用不到
+        # # 2. DeepAgents 脚本模式: 全局 runtime 的 stream_writer
+        # #    (simple_agents.py 中的 MockRuntime 借此接收数据)
+        # if builtins and hasattr(builtins, 'runtime') and hasattr(builtins.runtime, 'stream_writer'):
+        #     try:
+        #         builtins.runtime.stream_writer(payload)
+        #     except Exception:
+        #         pass
 
         # 3. 控制台保底输出: 带特殊前缀, 方便肉眼识别
         print(f"\n[Monitor:{event_type}] {message}")
@@ -72,7 +72,9 @@ class ToolMonitor:
         if not session_id:
             return
 
-        # 跨线程投递: 让协程回到 manager_loop 所属的线程上执行（也有可能当前线程就是 manager_loop 所属的线程）
+
+        # 跨线程投递: 工具都是同步函数, 经 astream 会被扔进线程池执行,
+        # 此处可能在线程池线程上, 必须用 run_coroutine_threadsafe 线程安全地送回 loop
         try:
             asyncio.run_coroutine_threadsafe(
                 manager.send_to_session(payload, session_id),

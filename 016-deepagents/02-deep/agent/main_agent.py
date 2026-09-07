@@ -151,7 +151,6 @@ async def run_deep_agent(task_query: str, session_id: str = None):
         return "Done"
     except Exception as e:
         print(f"Error: {e}")
-        #TODO
         monitor._emit("error", f"Execution failed: {e}")
         return f"Error: {e}"
 

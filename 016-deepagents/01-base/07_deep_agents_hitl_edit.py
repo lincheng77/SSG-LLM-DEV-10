@@ -92,7 +92,7 @@ result = main_agent.invoke(
     config=config
 )
 
-#todo 只要有拦截触发,所有工具都不会执行!!
+# 只要有拦截触发,所有工具都不会执行!!
 tool_list = result.get("__interrupt__")[0].value['action_requests']
 decisions = []
 

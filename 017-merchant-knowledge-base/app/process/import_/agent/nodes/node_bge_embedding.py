@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from app.shared.runtime.logger import logger,node_log
 from app.shared.utils.task_utils import add_done_task, add_running_task
 from app.process.import_.agent.state import ImportGraphState
-from app.rag.import_ import generate_chunk_embeddings
+# from app.rag.import_ import generate_chunk_embeddings
 
 @node_log("node_bge_embedding")
 def node_bge_embedding(state: ImportGraphState) -> ImportGraphState:

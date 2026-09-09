@@ -1,9 +1,6 @@
-# TODO: 从参考项目拷贝, 尚未审阅理解, 待精读
 
-"""
-MinerU 门面模块，统一封装 PDF 解析服务的连接配置访问。
-"""
 from app.infra.config import infra_config
+
 
 
 class MinerUGateway:

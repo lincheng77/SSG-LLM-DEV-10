@@ -38,8 +38,8 @@ def after_node_entry(state: ImportGraphState) -> str:
         logger.info(f"传入的文件地址:{state.get('input_file_path')},文件既不是md又不是pdf,无法处理,直接跳到END节点!")
         return END
 workflow.add_conditional_edges("node_entry", after_node_entry, {
-    "node_md_img": "node_document_split",    # 键 → 实际节点（可以不要，因为三个节点的键值一样）
-    "node_pdf_to_md": "node_document_split", # 键 → 实际节点（可以不要，因为三个节点的键值一样）
+    "node_md_img": "node_md_img",    # 键 → 实际节点（可以不要，因为三个节点的键值一样）
+    "node_pdf_to_md": "node_pdf_to_md", # 键 → 实际节点（可以不要，因为三个节点的键值一样）
     END: END,                                # 键 → 实际节点（可以不要，因为三个节点的键值一样）
 }) 
 

@@ -8,7 +8,7 @@ import os
 from app.shared.runtime.logger import logger, node_log
 from app.shared.utils.task_utils import add_done_task, add_running_task
 from app.process.import_.agent.state import ImportGraphState
-from app.rag.import_ import enrich_markdown_images
+# from app.rag.import_ import enrich_markdown_images
 
 @node_log("node_md_img")
 def node_md_img(state: ImportGraphState) -> ImportGraphState:

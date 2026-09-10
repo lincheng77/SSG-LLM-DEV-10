@@ -1,0 +1,24 @@
+# 掌柜智库项目依赖的中间件环境 (MinIO 对象存储)
+# 用法(必须在 docker/ 目录内执行):
+#   docker compose up -d      # 启动
+#   docker compose logs -f minio
+#   docker compose down       # 停止(数据保留在 ./volumes/minio/data)
+name: S10-017-merchant-knowledge-base
+
+services:
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin       # 登录用户名
+      MINIO_ROOT_PASSWORD: minioadmin   # 登录密码
+    ports:
+      - "9000:9000"   # 对象存储服务 (代码里 MINIO_ENDPOINT 用的端口)
+      - "9001:9001"   # Web 控制台
+    volumes:
+      - minio_data:/data             # 数据持久化到 named volume
+    command: server /data --console-address ":9001" 
+
+volumes:
+  minio_data:

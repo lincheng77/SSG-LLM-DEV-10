@@ -4,7 +4,7 @@
 配置聚合模块，负责将旧配置对象统一收口到新的基础设施出口。
 """
 from app.shared.config.embedding_config import embedding_config
-from app.shared.config.lm_config import lm_config
+from app.shared.config.llm_config import llm_config
 from app.shared.config.bailian_mcp_config import mcp_config
 from app.shared.config.milvus_config import milvus_config
 from app.shared.config.mineru_config import mineru_config
@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 @dataclass
 class InfrastructureConfig:
     app: object = field(default_factory=lambda: settings)
-    llm: object = field(default_factory=lambda: lm_config)
+    llm: object = field(default_factory=lambda: llm_config)
     embedding: object = field(default_factory=lambda: embedding_config)
     reranker: object = field(default_factory=lambda: reranker_config)
     mcp: object = field(default_factory=lambda: mcp_config)

@@ -10,7 +10,7 @@ from app.shared.clients.milvus_utils import (
     get_milvus_client,
     hybrid_search,
 )
-from app.infra.config import infra_config
+from app.infra.providers import infra_config
 
 
 class MilvusGateway:

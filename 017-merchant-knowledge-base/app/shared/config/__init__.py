@@ -3,7 +3,7 @@
 """
 from app.shared.config.bailian_mcp_config import McpConfig, mcp_config
 from app.shared.config.embedding_config import EmbeddingConfig, embedding_config
-from app.shared.config.lm_config import LLMConfig, lm_config
+from app.shared.config.llm_config import LLMConfig, llm_config
 from app.shared.config.milvus_config import MilvusConfig, milvus_config
 from app.shared.config.mineru_config import MinerUConfig, mineru_config
 from app.shared.config.minio_config import MinIOConfig, minio_config
@@ -15,7 +15,7 @@ __all__ = [
     "EmbeddingConfig",
     "embedding_config",
     "LLMConfig",
-    "lm_config",
+    "llm_config",
     "MilvusConfig",
     "milvus_config",
     "MinerUConfig",

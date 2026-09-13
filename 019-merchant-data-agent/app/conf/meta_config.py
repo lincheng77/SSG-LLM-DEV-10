@@ -41,7 +41,7 @@ yaml_path = Path(__file__).parent.parent.parent / "conf/meta_config.yaml"
 yaml_data = OmegaConf.load(yaml_path)
 
 # 将数据转换为MetaConfig类型的对象
-meta_config: MetricConfig = OmegaConf.to_object(OmegaConf.merge(MetaConfig, yaml_data))
+meta_config: MetaConfig = OmegaConf.to_object(OmegaConf.merge(MetaConfig, yaml_data))
 
 if __name__ == '__main__':
     print(meta_config)

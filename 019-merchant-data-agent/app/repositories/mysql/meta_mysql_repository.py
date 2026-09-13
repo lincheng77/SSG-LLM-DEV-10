@@ -1,4 +1,4 @@
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio.session import AsyncSession
 
 from app.models.mysql.column_info_mysql import ColumnInfoMySQL
@@ -7,23 +7,27 @@ from app.models.mysql.metric_info_mysql import MetricInfoMySQL
 from app.models.mysql.table_info_mysql import TableInfoMySQL
 
 
-class DWMysqlRepository:
+class MetaMysqlRepository:
     """
     操作Meta Mysql数据的仓库类
     """
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    def save_table_infos(self, table_infos: list[TableInfoMySQL]):
+    async def save_table_infos(self, table_infos: list[TableInfoMySQL]):
+        await self.session.execute(delete(TableInfoMySQL))
         self.session.add_all(table_infos)
 
-    def save_column_infos(self, column_infos: list[ColumnInfoMySQL]):
+    async def save_column_infos(self, column_infos: list[ColumnInfoMySQL]):
+        await self.session.execute(delete(ColumnInfoMySQL))
         self.session.add_all(column_infos)
 
-    def save_metric_infos(self, metric_infos: list[MetricInfoMySQL]):
+    async def save_metric_infos(self, metric_infos: list[MetricInfoMySQL]):
+        await self.session.execute(delete(MetricInfoMySQL))
         self.session.add_all(metric_infos)
 
-    def save_column_metrics(self, column_metrics: list[ColumnMetricMySQL]):
+    async def save_column_metrics(self, column_metrics: list[ColumnMetricMySQL]):
+        await self.session.execute(delete(ColumnMetricMySQL))
         self.session.add_all(column_metrics)
 
     # 根据字段id获取字段信息
@@ -46,3 +50,4 @@ class DWMysqlRepository:
 .scalars()   每行的第一列组成的流，all() 收成列表                   [1,2,3]
 .mappings()  每行转成字典的流，all() 收成字典列表                   [{'id':1,'name':'阿司匹林'}, {'id':2,'name':'布洛芬'}, ...]
 """
+

@@ -22,7 +22,7 @@ class DWMysqlRepository:
         """
         获取表的列值
         """
-        sql = f"select {column_name} from {table_name} limit {limit}"
+        sql = f"select distinct {column_name} from {table_name} where {column_name} is not null limit {limit}"
         result = await self.session.execute(text(sql))
 
         # scalars() 方法返回一个迭代器，可以使用 all() 方法将其转换为列表

@@ -32,11 +32,9 @@ class MetricQdrantRepository:
                                     payloads: list[MetricInfoQdrant],
                                     ids: list[str]):
         """
-        TODO
-
         :param vectors:
         :param payloads:
-        :param ids: 向量的主键，来源是指标的业务主键转成的 UUID，作用是让重复导入变成覆盖而不是堆积
+        :param ids: 每个向量点的唯一编号(UUID, 由调用方随机生成), 与vectors/payloads按下标一一对应组装成点; 集合每次导入前整体删除重建(见_ensure_collection), 故id无需确定性
         :return:
         """
         client = self.client
@@ -61,3 +59,13 @@ class MetricQdrantRepository:
                         payload=batch_payloads[j]) for j in range(len(batch_vectors))
                 ]
             )
+
+
+    async def search(self, vertor: list[float], scorez_threshold=0.6) -> list[MetricInfoQdrant]:
+        result = await self.client.query_points(
+            collection_name=self.collection_name,
+            query=vertor,
+            scorez_threshold=scorez_threshold
+        )
+
+        return [MetricInfoQdrant(**point.payload) for point in result.points]

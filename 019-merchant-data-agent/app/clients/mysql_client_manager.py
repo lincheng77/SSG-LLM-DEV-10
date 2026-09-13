@@ -26,10 +26,10 @@ class MysqlClientManager:
         self.session_factory: Optional[async_sessionmaker] = None
 
     def _get_url(self):
-        return f"mysql+asyncmy://{self.config.user}:{self.config.password}"
-        +"@{self.config.host}:{self.config.port}/{self.config.database}?charset=utf8mb4"
+        return (f"mysql+asyncmy://{self.config.user}:{self.config.password}"
+                f"@{self.config.host}:{self.config.port}/{self.config.database}?charset=utf8mb4")
 
-    def init(self):
+    def init_client(self):
         # 创建引擎
         self.engine = create_async_engine(
             self._get_url(),
@@ -52,6 +52,5 @@ class MysqlClientManager:
             self.engine = None
 
 
-dw_mysql_client_manager = MysqlClientManager(app_config.dw_mysql)
-meta_mysql_client_manager = MysqlClientManager(app_config.meta_mysql)
-
+dw_mysql_client_manager = MysqlClientManager(app_config.db_dw)
+meta_mysql_client_manager = MysqlClientManager(app_config.db_meta)

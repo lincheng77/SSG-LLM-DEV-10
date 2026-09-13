@@ -25,6 +25,11 @@ class EmbeddingClientManager:
         """
         self.client = HuggingFaceEndpointEmbeddings(model=self._get_url())
 
+    async def close(self):
+        if self.client:
+            await self.client.async_client.close()
+            self.client = None
+
 
 # 创建向量数据库客户端管理器
 embedding_client_manager = EmbeddingClientManager(app_config.embedding)

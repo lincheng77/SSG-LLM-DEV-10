@@ -46,5 +46,5 @@ es:
 
 # llm的配置
 llm:
-  model_name: deepseek-v4-flash
+  model_name: deepseek-flash
   api_key: sk-677cdda60cda4fe7904d749eb3056989

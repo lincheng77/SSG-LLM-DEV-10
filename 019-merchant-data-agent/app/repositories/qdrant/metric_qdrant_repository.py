@@ -61,11 +61,11 @@ class MetricQdrantRepository:
             )
 
 
-    async def search(self, vertor: list[float], scorez_threshold=0.6) -> list[MetricInfoQdrant]:
+    async def search(self, vertor: list[float], score_threshold=0.6) -> list[MetricInfoQdrant]:
         result = await self.client.query_points(
             collection_name=self.collection_name,
             query=vertor,
-            scorez_threshold=scorez_threshold
+            score_threshold=score_threshold
         )
 
         return [MetricInfoQdrant(**point.payload) for point in result.points]

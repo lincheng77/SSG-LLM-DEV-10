@@ -61,11 +61,11 @@ class ColumnQdrantRepository:
                 ]
             )
 
-    async def search(self, vertor: list[float], scorez_threshold=0.6) -> list[ColumnInfoQdrant]:
+    async def search(self, vertor: list[float], score_threshold=0.6) -> list[ColumnInfoQdrant]:
         result = await self.client.query_points(
             collection_name=self.collection_name,
             query=vertor,
-            scorez_threshold=scorez_threshold
+            score_threshold=score_threshold
         )
 
         return [ColumnInfoQdrant(**point.payload) for point in result.points]

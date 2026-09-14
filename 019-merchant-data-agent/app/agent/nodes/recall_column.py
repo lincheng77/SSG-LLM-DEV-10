@@ -30,7 +30,7 @@ async def recall_column(state: DataAgentState, runtime: Runtime[DataAgentContext
 
     output_parser = JsonOutputParser()
     chain = prompt_template | llm | output_parser
-    result = chain.invoke({"query": query})
+    result = await chain.ainvoke({"query": query})
     logger.info(f"大模型返回的语义化分词为：{result}")
     keywords = list(set(keywords + result))
 

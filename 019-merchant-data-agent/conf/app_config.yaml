@@ -47,4 +47,5 @@ es:
 # llm的配置
 llm:
   model_name: deepseek-flash
-  api_key: sk-677cdda60cda4fe7904d749eb3056989
+  # 从环境变量 LLM_API_KEY 读取，避免真实密钥入库
+  api_key: ${oc.env:LLM_API_KEY,""}

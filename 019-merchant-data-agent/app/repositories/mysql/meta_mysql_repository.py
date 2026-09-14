@@ -42,6 +42,9 @@ class MetaMysqlRepository:
         )
         return result.scalars().all()   #select(ColumnInfoMySQL) 查询出来的第一列就不是某个字段，而是整个实体
 
+    # 根据表id获取表信息
+    async def get_table_info_by_table_id(self, table_id: str)->TableInfoMySQL:
+        return await self.session.get(TableInfoMySQL, table_id)
 
 """
 .fetchall()  所有行的列表，每行是 Row（像元组，也能按列名取值）      [(1,'阿司匹林'), (2,'布洛芬'), (3,'感冒灵')]

@@ -4,6 +4,17 @@ from app.models.es.value_info_es import ValueInfoES
 from app.models.qdrant.column_info_qdrant import ColumnInfoQdrant
 from app.models.qdrant.metric_info_qdrant import MetricInfoQdrant
 
+# 当前日期时间的状态信息
+class DateInfoState(TypedDict):
+    date: str # 年月日
+    weekday: str # 星期
+    quarter: str # 季度  Q1-Q4
+
+
+# 数据库信息
+class DBInfoState(TypedDict):
+    version: str # 版本号
+    dialect: str # 数据库名称
 
 class ColumnInfoState(TypedDict):
     name: str
@@ -38,3 +49,6 @@ class DataAgentState(TypedDict):
 
     table_info_states: list[TableInfoState]
     metric_info_states: list[MetricInfoState]
+
+    date_info_state: DateInfoState
+    db_info_state: DBInfoState

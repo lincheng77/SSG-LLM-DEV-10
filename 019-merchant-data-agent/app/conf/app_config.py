@@ -1,7 +1,12 @@
 # 定义yaml文件的路径
 from dataclasses import dataclass
 from pathlib import Path
+
+from dotenv import load_dotenv
 from omegaconf import OmegaConf
+
+# 先加载项目根目录的.env，再解析yaml中的 ${oc.env:...}
+load_dotenv(Path(__file__).parent.parent.parent / ".env")  #把它写进进程环境变量 os.environ
 
 # ======日志配置类型=========
 # 定义数据的模型

@@ -34,5 +34,4 @@ async def add_extra_context(state: DataAgentState, runtime: Runtime[DataAgentCon
 
     logger.info(f"添加额外信息完成：date_info={date_info}, db_info={db_info}")
 
-    return {"date_info_state": date_info, "db_info_state": db_info}
-
+    return {"date_info": date_info, "db_info": db_info}

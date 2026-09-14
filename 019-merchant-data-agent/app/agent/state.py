@@ -50,5 +50,8 @@ class DataAgentState(TypedDict):
     table_info_states: list[TableInfoState]
     metric_info_states: list[MetricInfoState]
 
-    date_info_state: DateInfoState
-    db_info_state: DBInfoState
+    date_info: DateInfoState
+    db_info: DBInfoState
+
+    sql: str # 生成的sql
+    error: str # 存储校验SQL产生的错误信息

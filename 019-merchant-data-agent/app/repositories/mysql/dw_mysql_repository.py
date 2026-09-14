@@ -38,15 +38,17 @@ class DWMysqlRepository:
         return {"version": version, "dialect": dialect}
 
     
-    async def validate_sql(self, sql: str) -> bool:
+    async def validate_sql(self, sql: str) -> str | None:
         """
-        验证SQL语句是否有效
+        通过 EXPLAIN 校验SQL语法与表/字段引用是否合法（不真正执行）
+        返回错误信息，通过则返回 None
         """
         try:
-            await self.session.execute(text(sql))
-            return True
+            await self.session.execute(text(f"EXPLAIN {sql}"))
+            return None
         except Exception as e:
-            return False
+            await self.session.rollback()
+            return str(e)
 
     async def execute_sql(self, sql: str):
         """

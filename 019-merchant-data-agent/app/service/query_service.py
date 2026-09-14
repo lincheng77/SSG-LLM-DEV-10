@@ -3,7 +3,7 @@ import json
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
 
 from app.agent.context import DataAgentContext
-from app.agent.graph import graph
+from app.agent.graph import compiled_graph
 from app.agent.state import DataAgentState
 from app.repositories.es.value_es_repository import ValueESRepository
 from app.repositories.mysql.dw_mysql_repository import DWMysqlRepository
@@ -39,5 +39,5 @@ class QueryService:
             dw_mysql_repository=self.dw_mysql_repo,  # 数据仓库
         )
 
-        async for chunk in graph.astream(input=state, context=context, stream_mode="custom"):
+        async for chunk in compiled_graph.astream(input=state, context=context, stream_mode="custom"):
             yield f"data:{json.dumps(chunk, ensure_ascii=False, default=str)}\n\n"

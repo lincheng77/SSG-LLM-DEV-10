@@ -67,7 +67,7 @@ async def merge_retrieved_info(state: DataAgentState, runtime: Runtime[DataAgent
 
     # 4. 根据召回的列，封装对应的表信息(表里封装列信息) state
     table_info_state: list[TableInfoState] = []
-    column_info_states: list[ColumnInfoState]
+    column_info_states: list[ColumnInfoState] = []
     for table_id, column_infos in table_column_infos_dict.items():
         table_info_mysql: TableInfoMySQL = await meta_mysql_repository.get_table_info_by_table_id(table_id)
         column_info_states: list[ColumnInfoState] = [_convert_column_info_qdrant_to_state(item) for item in column_infos]

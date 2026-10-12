@@ -36,6 +36,7 @@ __pycache__/
 *.pth
 *.pt
 *.safetensors
+*.bin
 
 # Windows 快捷方式等系统杂物
 *.lnk
